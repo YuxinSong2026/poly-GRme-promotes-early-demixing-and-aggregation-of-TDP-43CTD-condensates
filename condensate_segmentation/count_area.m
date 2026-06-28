@@ -1,54 +1,54 @@
 function analyze_droplet_demixing_final_nested()
 %% ====================================
-% 批量分析 TDP43 / GR / GRme 液滴及红色脱混合液滴
+% Batch analysis of TDP43 / GR / GRme droplets and red demixed droplets
 %
-% 功能：
-% 1. 分别选择 TDP43 / GR / GRme 三类图片，每类可多选
-% 2. 每张图片作为一个独立实验
-% 3. 统计每张图：
-%    - 总液滴数目
-%    - 总液滴面积
-%    - 每个总液滴面积
-%    - 脱混合红色液滴数目
-%    - 脱混合红色液滴面积
-%    - 每个脱混合红色液滴面积
-% 4. 输出 Excel
-% 5. 输出每类第一张图的分割标注图
-% 6. 输出双柱状图：
-%    - 左 y 轴：液滴数目
-%    - 右 y 轴：液滴总面积 / 脱混合面积
-%    - mean ± SEM
-%    - 每张图散点
-% 7. 显著性分析使用 Welch's two-sample t-test
+% Features:
+% 1. Select TDP43 / GR / GRme images separately, with multiple images allowed for each class
+% 2. Treat each image as an independent experiment
+% 3. Quantify each image:
+%    - Total droplet count
+%    - Total droplet area
+%    - Area of each total droplet
+%    - Red demixed droplet count
+%    - Red demixed droplet area
+%    - Area of each red demixed droplet
+% 4. Export Excel results
+% 5. Export the segmentation overlay for the first image of each class
+% 6. Export a dual-axis bar plot:
+%    - Left y-axis: droplet count
+%    - Right y-axis: total droplet area / demixed area
+%    - mean +/- SEM
+%    - Per-image scatter points
+% 7. Use Welch's two-sample t-test for significance analysis
 %
-% 注意：
-% - TDP43 类默认只有红色液滴，不统计 demix
-% - GR / GRme 中红色富集区域作为 demix droplets
-% - 视野大小默认为 127.28 μm × 127.28 μm
+% Notes:
+% - TDP43 is treated as red-only droplets by default; demixing is not quantified
+% - Red-enriched regions in GR / GRme are treated as demixed droplets
+% - The field of view is 127.28 um x 127.28 um by default
 % ====================================
 
 clc;
 close all;
 
-%% ===== 0. 参数设置 =====
+%% ===== 0. Parameter settings =====
 
-FOV_um = 127.28;   % 输入图像实际视野大小，单位 μm
+FOV_um = 127.28;   % Actual field of view of the input image, in um
 
-% ---------- 总液滴分割参数 ----------
+% ---------- Total droplet segmentation parameters ----------
 total_smooth_sigma = 0.8;
 total_min_area_um2 = 0.01;
 total_fill_holes = true;
 
-% ---------- 红色脱混合液滴分割参数 ----------
+% ---------- Red demixed droplet segmentation parameters ----------
 red_smooth_sigma = 0.8;
 red_min_area_um2 = 0.01;
-red_enrichment_ratio = 1.2;       % 红色相对于黄色/绿色的富集倍数
-red_abs_sensitivity = 0.20;     % 红色绝对强度阈值敏感度
+red_enrichment_ratio = 1.2;       % Red enrichment ratio relative to yellow/green
+red_abs_sensitivity = 0.20;     % Sensitivity for the absolute red-intensity threshold
 
-% ---------- 输出控制 ----------
+% ---------- Output control ----------
 save_overlay_images = true;
 
-%% ===== 1. 选择图片 =====
+%% ===== 1. Select images =====
 
 classNames = {'TDP43','GR','GRme'};
 
@@ -60,11 +60,11 @@ for c = 1:numel(classNames)
     [files,pathName] = uigetfile( ...
         {'*.jpg;*.jpeg;*.png;*.tif;*.tiff', ...
         'Image files (*.jpg, *.jpeg, *.png, *.tif, *.tiff)'}, ...
-        ['请选择 ', classNames{c}, ' 类图片，可多选'], ...
+        ['Select ', classNames{c}, ' images; multiple selection is allowed'], ...
         'MultiSelect','on');
 
     if isequal(files,0)
-        warning('%s 类未选择图片。', classNames{c});
+        warning('No images were selected for %s.', classNames{c});
         fileList{c} = {};
         pathList{c} = '';
     else
@@ -77,14 +77,14 @@ for c = 1:numel(classNames)
 
 end
 
-%% ===== 2. 选择输出 Excel 文件 =====
+%% ===== 2. Select output Excel file =====
 
 [outFile,outPath] = uiputfile( ...
     'Droplet_Demixing_Statistics.xlsx', ...
-    '选择 Excel 输出文件名');
+    'Select the output Excel file name');
 
 if isequal(outFile,0)
-    disp('已取消输出。');
+    disp('Output canceled.');
     return;
 end
 
@@ -97,7 +97,7 @@ if ~exist(outputFolder,'dir')
     mkdir(outputFolder);
 end
 
-%% ===== 3. 批量分析 =====
+%% ===== 3. Batch analysis =====
 
 summaryRows = {};
 dropletRows = {};
@@ -179,7 +179,7 @@ for c = 1:numel(classNames)
             red_abs_sensitivity, ...
             isTDP43);
 
-        % 汇总结果
+        % Summary results
         summaryRows(end+1,:) = { ...
             className, ...
             imgName, ...
@@ -191,7 +191,7 @@ for c = 1:numel(classNames)
             result.demixCount, ...
             result.demixArea_um2};
 
-        % 每个总液滴明细
+        % Per-total-droplet details
         for k = 1:result.totalCount
             dropletRows(end+1,:) = { ...
                 className, ...
@@ -203,7 +203,7 @@ for c = 1:numel(classNames)
                 (H - result.totalStats(k).Centroid(2)) * pixelSize_um};
         end
 
-        % 每个脱混合液滴明细
+        % Per-demixed-droplet details
         for k = 1:result.demixCount
             demixRows(end+1,:) = { ...
                 className, ...
@@ -220,7 +220,7 @@ for c = 1:numel(classNames)
         allResults.(className).totalCount(end+1,1) = result.totalCount;
         allResults.(className).demixCount(end+1,1) = result.demixCount;
 
-        % 每类第一张图输出分割标注图
+        % Export the segmentation overlay for the first image of each class
         if save_overlay_images && i == 1
             overlayFig = make_overlay( ...
                 I, ...
@@ -236,15 +236,15 @@ for c = 1:numel(classNames)
             close(overlayFig);
         end
 
-        fprintf('完成：%s - %s\n',className,imgName);
+        fprintf('Done: %s - %s\n',className,imgName);
 
     end
 end
 
-%% ===== 4. 输出 Excel =====
+%% ===== 4. Export Excel =====
 
 if isempty(summaryRows)
-    error('没有选择任何图片，程序结束。');
+    error('No images were selected. Program terminated.');
 end
 
 summaryTable = cell2table(summaryRows,'VariableNames',summaryHeader);
@@ -255,12 +255,12 @@ writetable(summaryTable,excelFile,'Sheet','Summary');
 writetable(dropletTable,excelFile,'Sheet','Each_Total_Droplet');
 writetable(demixTable,excelFile,'Sheet','Each_Demix_Droplet');
 
-%% ===== 5. 显著性分析：Welch's two-sample t-test =====
+%% ===== 5. Significance analysis: Welch's two-sample t-test =====
 
 statsTable = do_statistics_all(allResults);
 writetable(statsTable,excelFile,'Sheet','Statistics');
 
-%% ===== 6. 画双柱状图：数量 + 面积 =====
+%% ===== 6. Plot dual-axis bar chart: count + area =====
 
 fig = plot_summary_doublebar(allResults,statsTable);
 
@@ -268,12 +268,12 @@ summaryFigBaseName = fullfile(outputFolder,'Summary_DoubleBar_Count_Area');
 safe_save_fig(fig,summaryFigBaseName);
 
 disp(' ');
-disp('分析完成。');
-disp(['Excel 输出：',excelFile]);
-disp(['图片输出文件夹：',outputFolder]);
+disp('Analysis complete.');
+disp(['Excel output: ',excelFile]);
+disp(['Image output folder: ',outputFolder]);
 
 %% ============================================================
-%                     嵌套函数区
+%                     Nested functions
 % ============================================================
 
     function result = analyze_single_image( ...
@@ -293,7 +293,7 @@ disp(['图片输出文件夹：',outputFolder]);
         R = I_double(:,:,1);
         G = I_double(:,:,2);
 
-        % ---------- 背景扣除 ----------
+        % ---------- Background subtraction ----------
         R_bg = imopen(R,strel('disk',15));
         G_bg = imopen(G,strel('disk',15));
 
@@ -306,7 +306,7 @@ disp(['图片输出文件夹：',outputFolder]);
         R_s = imgaussfilt(R_corr,total_smooth_sigma);
         G_s = imgaussfilt(G_corr,total_smooth_sigma);
 
-        %% ---------- 1. 总液滴 mask ----------
+        %% ---------- 1. Total droplet mask ----------
 
         totalSignal = max(R_s,G_s);
 
@@ -342,7 +342,7 @@ disp(['图片输出文件夹：',outputFolder]);
             totalArea_um2 = 0;
         end
 
-        %% ---------- 2. 红色脱混合液滴 mask ----------
+        %% ---------- 2. Red demixed droplet mask ----------
 
         if isTDP43
 
@@ -353,19 +353,19 @@ disp(['图片输出文件夹：',outputFolder]);
             R_d = imgaussfilt(R_corr,red_smooth_sigma);
             G_d = imgaussfilt(G_corr,red_smooth_sigma);
 
-            % 红色绝对强度阈值
+            % Absolute red-intensity threshold
             T_red_abs = adaptthresh(R_d,red_abs_sensitivity);
             redAbsMask = imbinarize(R_d,T_red_abs);
 
-            % 黄色近似为 R 和 G 同时存在的区域
+            % Approximate yellow as regions where R and G are both present
             yellow = min(R_s,G_s);
 
-            % 红色相对黄色/绿色富集区域
+            % Regions with red enrichment relative to yellow/green
             redRatioMask = R_d > red_enrichment_ratio * max(G_d,yellow);
 
             demixMask = redAbsMask & redRatioMask;
 
-            % 限制在总液滴及其附近，允许独立红色脱混合液滴存在
+            % Restrict to total droplets and nearby regions, while allowing independent red demixed droplets
             totalDilated = imdilate(totalMask,strel('disk',2));
             demixMask = demixMask & totalDilated;
 
@@ -391,7 +391,7 @@ disp(['图片输出文件夹：',outputFolder]);
             demixArea_um2 = 0;
         end
 
-        %% ---------- 3. 返回结果 ----------
+        %% ---------- 3. Return results ----------
 
         result.totalMask = totalMask;
         result.demixMask = demixMask;
@@ -408,7 +408,7 @@ disp(['图片输出文件夹：',outputFolder]);
     end
 
 %% ============================================================
-%                     分水岭分割相邻液滴
+%                     Watershed split for adjacent droplets
 % ============================================================
 
     function mask_out = split_touching(mask)
@@ -421,7 +421,7 @@ disp(['图片输出文件夹：',outputFolder]);
         D = -bwdist(~mask);
         D(~mask) = -Inf;
 
-        % 数值越大，越不容易把相邻液滴分开
+        % Larger values make adjacent droplets less likely to split
         D2 = imhmin(D,1);
 
         L = watershed(D2);
@@ -432,7 +432,7 @@ disp(['图片输出文件夹：',outputFolder]);
     end
 
 %% ============================================================
-%                     显著性分析：数量和面积
+%                     Significance analysis: count and area
 % ============================================================
 
     function statsTable = do_statistics_all(allResults)
@@ -448,7 +448,7 @@ disp(['图片输出文件夹：',outputFolder]);
         totalGroups = {'TDP43','GR','GRme'};
         totalPairs = nchoosek(1:3,2);
 
-        % ---------- 总液滴数量比较 ----------
+        % ---------- Total droplet count comparisons ----------
         for p = 1:size(totalPairs,1)
 
             g1 = totalGroups{totalPairs(p,1)};
@@ -469,7 +469,7 @@ disp(['图片输出文件夹：',outputFolder]);
 
         end
 
-        % ---------- 总液滴面积比较 ----------
+        % ---------- Total droplet area comparisons ----------
         for p = 1:size(totalPairs,1)
 
             g1 = totalGroups{totalPairs(p,1)};
@@ -490,7 +490,7 @@ disp(['图片输出文件夹：',outputFolder]);
 
         end
 
-        % ---------- 脱混合液滴数量比较 ----------
+        % ---------- Demixed droplet count comparison ----------
         x = allResults.GR.demixCount;
         y = allResults.GRme.demixCount;
 
@@ -504,7 +504,7 @@ disp(['图片输出文件夹：',outputFolder]);
         Test{end+1,1} = testName;
         Significance{end+1,1} = p_to_star(pval);
 
-        % ---------- 脱混合液滴面积比较 ----------
+        % ---------- Demixed droplet area comparison ----------
         x = allResults.GR.demixArea;
         y = allResults.GRme.demixArea;
 
@@ -530,7 +530,7 @@ disp(['图片输出文件夹：',outputFolder]);
     end
 
 %% ============================================================
-%                     两组比较：Welch's two-sample t-test
+%                     Two-group comparison: Welch's two-sample t-test
 % ============================================================
 
     function [pval,testName] = compare_groups(x,y)
@@ -556,7 +556,7 @@ disp(['图片输出文件夹：',outputFolder]);
     end
 
 %% ============================================================
-%                     p 值转星号
+%                     Convert p-value to significance stars
 % ============================================================
 
     function star = p_to_star(p)
@@ -578,7 +578,7 @@ disp(['图片输出文件夹：',outputFolder]);
     end
 
 %% ============================================================
-%                     画双柱状图：数量 + 面积
+%                     Plot dual-axis bar chart: count + area
 % ============================================================
 
     function fig = plot_summary_doublebar(allResults,statsTable)
@@ -644,7 +644,7 @@ disp(['图片输出文件夹：',outputFolder]);
 
         rng(1);
 
-        %% ---------- 左轴：数量 ----------
+        %% ---------- Left axis: count ----------
         yyaxis left
         hold on;
 
@@ -693,7 +693,7 @@ disp(['图片输出文件夹：',outputFolder]);
         end
         ylim([0 yl_left(2)*1.20]);
 
-        %% ---------- 右轴：面积 ----------
+        %% ---------- Right axis: area ----------
         yyaxis right
         hold on;
 
@@ -744,7 +744,7 @@ disp(['图片输出文件夹：',outputFolder]);
         yBase = yl_right(2) * 0.90;
         step = yl_right(2) * 0.08;
 
-        % 图上默认标注面积显著性
+        % Annotate area significance by default
         add_sig_line_area( ...
             1 + offset, ...
             2 + offset, ...
@@ -771,7 +771,7 @@ disp(['图片输出文件夹：',outputFolder]);
 
         ylim([0, yBase + 4.5*step]);
 
-        %% ---------- 图形美化 ----------
+        %% ---------- Plot formatting ----------
         set(gca, ...
             'XTick',x, ...
             'XTickLabel',groups, ...
@@ -790,7 +790,7 @@ disp(['图片输出文件夹：',outputFolder]);
     end
 
 %% ============================================================
-%                     获取显著性星号
+%                     Get significance stars
 % ============================================================
 
     function star = get_star(statsTable,metricName,g1,g2)
@@ -808,7 +808,7 @@ disp(['图片输出文件夹：',outputFolder]);
     end
 
 %% ============================================================
-%                     添加面积显著性线
+%                     Add area significance line
 % ============================================================
 
     function add_sig_line_area(x1,x2,y,star)
@@ -833,7 +833,7 @@ disp(['图片输出文件夹：',outputFolder]);
     end
 
 %% ============================================================
-%                     生成分割标注图
+%                     Generate segmentation overlay
 % ============================================================
 
     function fig = make_overlay(I,totalMask,demixMask,className,imgName)
@@ -862,7 +862,7 @@ disp(['图片输出文件夹：',outputFolder]);
     end
 
 %% ============================================================
-%                     安全保存 figure
+%                     Save figure safely
 % ============================================================
 
     function safe_save_fig(figHandle,baseFileName)
@@ -870,17 +870,17 @@ disp(['图片输出文件夹：',outputFolder]);
         try
             savefig(figHandle,[baseFileName,'.fig']);
         catch ME
-            warning('保存 FIG 失败：%s',ME.message);
+            warning('Failed to save FIG: %s',ME.message);
         end
 
         try
             if exist('exportgraphics','file') == 2
                 exportgraphics(figHandle,[baseFileName,'.png'],'Resolution',300);
             else
-                warning('当前 MATLAB 版本不支持 exportgraphics，因此只保存 FIG。');
+                warning('The current MATLAB version does not support exportgraphics, so only the FIG file was saved.');
             end
         catch ME
-            warning('导出 PNG 失败，但程序继续运行。原因：%s',ME.message);
+            warning('Failed to export PNG, but the program will continue. Reason: %s',ME.message);
         end
 
     end

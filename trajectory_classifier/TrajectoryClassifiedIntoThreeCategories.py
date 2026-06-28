@@ -43,7 +43,7 @@ TRAIN_DIR = f"{BASE_DIR}/fenlei/train"
 TEST_DIR  = f"{BASE_DIR}/fenlei/work"
 OUT_DIR   = f"{BASE_DIR}/fenlei/results"
 
-TRAIN_FILE = "train-build2.xlsx"        # 必须是“三类训练格式”文件：>=15列(3*5)
+TRAIN_FILE = "train-build2.xlsx"        # Must use the 3-class training format: >=15 columns (3*5)
 TEST_FILE  = "T+M-1-c7-SPINNResults.xlsx"
 
 USE_TIMESTAMP = True

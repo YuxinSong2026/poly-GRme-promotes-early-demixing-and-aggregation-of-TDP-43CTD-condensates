@@ -2,18 +2,18 @@ function simulate_two_state_switching_20frames()
 %% ============================================================
 % Generate 20-frame two-state switching Brownian trajectories
 %
-% 功能：
-% 1. 生成 1000 条 20-frame 轨迹
-% 2. 每条轨迹内部可以发生 slow <-> fast 状态切换
-% 3. 每一帧保存 ground-truth state 和 ground-truth D
-% 4. 每一步 frame k -> frame k+1 保存 ground-truth state 和 D
-% 5. 输出 Excel ground truth
-% 6. 输出可以直接输入 SPINN 的 CSV 文件
+% Features:
+% 1. Generate 1000 20-frame trajectories
+% 2. Allow slow <-> fast state switches within each trajectory
+% 3. Save the ground-truth state and ground-truth D for each frame
+% 4. Save the ground-truth state and D for each step from frame k to frame k+1
+% 5. Export the ground-truth Excel file
+% 6. Export a CSV file that can be used directly as SPINN input
 %
-% 物理模型：
+% Physical model:
 %   dx, dy ~ N(0, 2Ddt)
 %
-% 单位：
+% Units:
 %   position: um
 %   D: um^2/s
 %   dt: s
@@ -22,57 +22,57 @@ function simulate_two_state_switching_20frames()
 clear; clc;
 
 %% =========================
-% 1. 参数设置
+% 1. Parameter settings
 %% =========================
-rng(10);                    % 固定随机种子，保证可重复
+rng(10);                    % Fixed random seed for reproducibility
 
-nTracks = 1000;             % 轨迹数量
-nFrames = 30;               % 每条轨迹帧数
-nSteps = nFrames - 1;       % 每条轨迹 step 数
+nTracks = 1000;             % Number of trajectories
+nFrames = 30;               % Number of frames per trajectory
+nSteps = nFrames - 1;       % Number of steps per trajectory
 
-dt = 0.01;                  % 帧间隔，单位 s
+dt = 0.01;                  % Frame interval, in s
 
 D_slow = 0.01;              % slow state diffusion coefficient, um^2/s
 D_fast = 0.20;              % fast state diffusion coefficient, um^2/s
 D_values = [D_slow; D_fast];
 
-% 状态编号：
+% State IDs:
 % 1 = slow
 % 2 = fast
 
-% Markov 状态转移矩阵
-% P(i,j) 表示当前状态 i 下一步转移到状态 j 的概率
+% Markov state-transition matrix
+% P(i,j) is the probability of transitioning from current state i to next state j
 %
-% 这里设置为对称切换：
-% slow 有 8% 概率切到 fast
-% fast 有 8% 概率切到 slow
+% This is configured as symmetric switching:
+% slow has an 8% probability of switching to fast
+% fast has an 8% probability of switching to slow
 %
-% 如果你想减少切换，把 pSwitch 改成 0.05
-% 如果你想增加切换，把 pSwitch 改成 0.10 或 0.15
+% To reduce switching, change pSwitch to 0.05
+% To increase switching, change pSwitch to 0.10 or 0.15
 
 pSwitch = 0.08;
 
 P = [1 - pSwitch, pSwitch;
      pSwitch,     1 - pSwitch];
 
-% 是否强制每条轨迹至少发生一次 slow/fast 切换
-% true  = 每条轨迹至少切换一次
-% false = 自然 Markov 过程，有些轨迹可能 20 帧内没有切换
+% Whether to force at least one slow/fast switch in each trajectory
+% true  = each trajectory switches at least once
+% false = natural Markov process; some trajectories may have no switch within 20 frames
 forceAtLeastOneSwitch = true;
 
-% 初始位置随机范围，单位 um
+% Random range for the initial position, in um
 startBox_um = 1.0;
 
-% 定位误差
-% 0 表示不加入定位误差
-% 0.02 表示加入 20 nm 定位误差
+% Localization error
+% 0 means no localization error is added
+% 0.02 means 20 nm localization error is added
 locSigma_um = 0.0;
 
 %% =========================
-% 2. 随机设置每条轨迹的初始状态
+% 2. Randomly set the initial state of each trajectory
 %% =========================
-% 让初始 slow / fast 数量各占一半，
-% 但 TrackID 顺序随机打乱。
+% Keep the initial slow / fast counts balanced,
+% while randomizing the TrackID order.
 
 nInitialSlow = nTracks / 2;
 nInitialFast = nTracks / 2;
@@ -81,7 +81,7 @@ initialStateList = [ones(nInitialSlow, 1); 2 * ones(nInitialFast, 1)];
 initialStateList = initialStateList(randperm(nTracks));
 
 %% =========================
-% 3. 预分配存储空间
+% 3. Preallocate storage
 %% =========================
 nFrameRows = nTracks * nFrames;
 nStepRows = nTracks * nSteps;
@@ -134,16 +134,16 @@ SPINN_X_um = zeros(nFrameRows, 1);
 SPINN_Y_um = zeros(nFrameRows, 1);
 
 %% =========================
-% 4. 逐条生成轨迹
+% 4. Generate trajectories one by one
 %% =========================
 for trackID = 1:nTracks
 
     initialState = initialStateList(trackID);
 
     %% -------------------------
-    % 4.1 生成 step-level state sequence
-    %
-    % state_step(k) 表示 frame k -> frame k+1 这一步使用的状态
+    % 4.1 Generate the step-level state sequence
+%
+    % state_step(k) is the state used for the step from frame k to frame k+1
     %% -------------------------
     state_step = generate_state_sequence( ...
         initialState, P, nSteps, forceAtLeastOneSwitch);
@@ -151,7 +151,7 @@ for trackID = 1:nTracks
     D_step = D_values(state_step);
 
     %% -------------------------
-    % 4.2 根据每一步的 D 生成 Brownian displacement
+    % 4.2 Generate Brownian displacement from the D value of each step
     %% -------------------------
     sigma_step = sqrt(2 .* D_step .* dt);
 
@@ -165,7 +165,7 @@ for trackID = 1:nTracks
     y_true = y0 + [0; cumsum(dy_true)];
 
     %% -------------------------
-    % 4.3 加定位误差，得到观测轨迹
+    % 4.3 Add localization error to obtain the observed trajectory
     %% -------------------------
     x_obs = x_true + locSigma_um * randn(nFrames, 1);
     y_obs = y_true + locSigma_um * randn(nFrames, 1);
@@ -174,26 +174,26 @@ for trackID = 1:nTracks
     dy_obs = diff(y_obs);
 
     %% -------------------------
-    % 4.4 生成 frame-level state
-    %
-    % 对于 frame 1 到 frame 19：
-    %   frame state = 从该帧出发的 step state
-    %
-    % 对于最后一帧 frame 20：
-    %   没有 outgoing step，因此沿用最后一个 step 的 state
+    % 4.4 Generate the frame-level state
+%
+    % For frame 1 to frame 19:
+    %   frame state = the step state starting from that frame
+%
+    % For the last frame, frame 20:
+    %   there is no outgoing step, so reuse the state of the last step
     %% -------------------------
     state_frame = [state_step; state_step(end)];
     D_frame = D_values(state_frame);
 
     hasOutgoingStep = [true(nSteps, 1); false];
 
-    % 标记状态切换发生的 frame
-    % 如果 state_step(k) 与 state_step(k-1) 不同，
-    % 则 frame k 是一个真实状态切换后的第一帧。
+    % Mark frames where a state switch occurs
+    % If state_step(k) differs from state_step(k-1),
+    % then frame k is the first frame after a real state switch.
     isSwitchFrame = [false; diff(state_step) ~= 0; false];
 
     %% -------------------------
-    % 4.5 保存 FrameData
+    % 4.5 Save FrameData
     %% -------------------------
     frameIdx = (trackID - 1) * nFrames + (1:nFrames);
 
@@ -214,15 +214,15 @@ for trackID = 1:nTracks
     Frame_StateName(frameIdx) = stateNameFrame;
 
     %% -------------------------
-    % 4.6 保存 StepData
+    % 4.6 Save StepData
     %% -------------------------
     stepIdx = (trackID - 1) * nSteps + (1:nSteps);
 
     stepLength_true = sqrt(dx_true.^2 + dy_true.^2);
     stepLength_obs = sqrt(dx_obs.^2 + dy_obs.^2);
 
-    % 单步反推 D，仅作为参考
-    % 它会因为 Brownian 随机性强烈波动，不应逐步等于 D_true
+    % Back-calculate D from a single step for reference only
+    % It fluctuates strongly due to Brownian randomness and should not equal D_true step by step
     D_singleStep_true = (dx_true.^2 + dy_true.^2) ./ (4 * dt);
     D_singleStep_obs = (dx_obs.^2 + dy_obs.^2) ./ (4 * dt);
 
@@ -252,10 +252,10 @@ for trackID = 1:nTracks
     Step_D_singleStep_obs(stepIdx) = D_singleStep_obs;
 
     %% -------------------------
-    % 4.7 保存 SPINN 输入数据
-    %
-    % 默认用观测坐标 X_obs / Y_obs
-    % 当 locSigma_um = 0 时，X_obs = X_true
+    % 4.7 Save SPINN input data
+%
+    % Use observed coordinates X_obs / Y_obs by default
+    % When locSigma_um = 0, X_obs = X_true
     %% -------------------------
     SPINN_TrackID(frameIdx) = trackID;
     SPINN_Frame(frameIdx) = (1:nFrames)';
@@ -263,7 +263,7 @@ for trackID = 1:nTracks
     SPINN_Y_um(frameIdx) = y_obs;
 
     %% -------------------------
-    % 4.8 保存 Trajectory summary
+    % 4.8 Save the trajectory summary
     %% -------------------------
     Summary_TrackID(trackID) = trackID;
     Summary_InitialStateID(trackID) = initialState;
@@ -283,7 +283,7 @@ for trackID = 1:nTracks
 end
 
 %% =========================
-% 5. 组织成 table
+% 5. Organize data into tables
 %% =========================
 FrameData = table( ...
     Frame_TrackID, Frame_Frame, ...
@@ -365,7 +365,7 @@ ParamValues = { ...
 ParamTable = table(ParamNames, ParamValues);
 
 %% =========================
-% 6. 输出文件
+% 6. Export files
 %% =========================
 excelFile = 'two_state_switching_20frames_ground_truth.xlsx';
 csvFile = 'two_state_switching_20frames_for_SPINN.csv';
@@ -390,7 +390,7 @@ fprintf('Ground-truth Excel saved to: %s\n', excelFile);
 fprintf('SPINN input CSV saved to: %s\n', csvFile);
 
 %% =========================
-% 7. 输出简单检查结果
+% 7. Print simple check results
 %% =========================
 fprintf('\nSimulation summary:\n');
 fprintf('Total tracks: %d\n', nTracks);
@@ -410,7 +410,7 @@ nShowCheck = min(30, height(SummaryTable));
 disp(SummaryTable(1:nShowCheck, :));
 
 %% =========================
-% 8. 画示例轨迹
+% 8. Plot example trajectories
 %% =========================
 figure;
 hold on;
@@ -440,7 +440,7 @@ title('Example 20-frame two-state switching trajectories');
 box on;
 
 %% =========================
-% 9. 画 ground-truth D 分布
+% 9. Plot the ground-truth D distribution
 %% =========================
 figure;
 histogram(StepData.D_step_true_um2_s, 'BinMethod', 'auto');
@@ -484,8 +484,8 @@ for attempt = 1:maxAttempts
 
 end
 
-% 如果尝试 maxAttempts 次后仍然没有切换，
-% 则手动强制一次切换，保证该轨迹为 two-state switching trajectory。
+% If no switch occurs after maxAttempts attempts,
+% manually force one switch to ensure a two-state switching trajectory.
 if forceAtLeastOneSwitch && ~any(diff(state_step) ~= 0)
     switchPoint = randi([2, nSteps]);
     state_step(switchPoint:end) = 3 - state_step(switchPoint-1);

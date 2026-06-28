@@ -2,43 +2,43 @@ function evaluate_SPINN_state_switching_accuracy_v2()
 %% ============================================================
 % Evaluate SPINN state-classification and state-switching accuracy
 %
-% 功能：
-% 1. 弹窗选择 CSV 文件，第一行是标题行
-% 2. 默认第 11 列为 SPINN-D
-% 3. 默认第 12 列为 D_truth
-% 4. 将 SPINN-D 和 D_truth 分别转换为 slow / fast 状态
-% 5. 评估：
-%    - 每一帧 slow/fast 状态分类准确性
-%    - 真实 slow <-> fast 状态切换识别准确性
-%    - 原始短轨迹拼接边界帧的状态准确性
-%    - SPINN split 边界帧的状态准确性
-%    - 人工拼接 transition 是否诱发假的状态切换
+% Features:
+% 1. Select a CSV file from a dialog; the first row is treated as the header
+% 2. Column 11 is SPINN-D by default
+% 3. Column 12 is D_truth by default
+% 4. Convert SPINN-D and D_truth separately into slow / fast states
+% 5. Evaluate:
+%    - Per-frame slow/fast state-classification accuracy
+%    - Detection accuracy for real slow <-> fast state switches
+%    - State accuracy at original short-track concatenation boundary frames
+%    - State accuracy at SPINN split boundary frames
+%    - Whether artificial concatenation transitions induce false state switches
 %
-% 输入 CSV 要求：
-%    第一行为标题行
-%    第 11 列 = SPINN-D
-%    第 12 列 = D_truth
+% Input CSV requirements:
+%    The first row is a header row
+%    Column 11 = SPINN-D
+%    Column 12 = D_truth
 %
-% 输出：
-%    <原文件名>_SPINN_state_accuracy_evaluation.xlsx
-%    若干 PNG / FIG 图像
+% Outputs:
+%    <original_file_name>_SPINN_state_accuracy_evaluation.xlsx
+%    Several PNG / FIG images
 %
-% 重要说明：
-%    本代码不要求 SPINN-D 与 D_truth 数值逐帧相等，
-%    而是评估 SPINN-D 是否能够正确区分 slow / fast 状态。
+% Important note:
+%    This code does not require SPINN-D and D_truth to be numerically equal frame by frame;
+%    it evaluates whether SPINN-D correctly separates slow / fast states.
 %% ============================================================
 
 clear; clc;
 
 %% =========================
-% 1. 选择输入 CSV
+% 1. Select input CSV
 %% =========================
 [fileName, filePath] = uigetfile( ...
     {'*.csv', 'CSV files (*.csv)'}, ...
-    '请选择包含 SPINN-D 和 D_truth 的 CSV 文件');
+    'Select the CSV file containing SPINN-D and D_truth');
 
 if isequal(fileName, 0)
-    disp('已取消。');
+    disp('Canceled.');
     return;
 end
 
@@ -49,7 +49,7 @@ nRows = height(T);
 nCols = width(T);
 
 if nRows < 2
-    error('CSV 行数太少，无法分析。');
+    error('The CSV has too few rows to analyze.');
 end
 
 fprintf('Loaded file: %s\n', infile);
@@ -57,25 +57,25 @@ fprintf('Rows: %d\n', nRows);
 fprintf('Columns: %d\n', nCols);
 
 %% =========================
-% 2. 参数输入
+% 2. Parameter input
 %% =========================
 prompt = { ...
-    'TrackID 所在列号；如果没有 TrackID，填 0：', ...
-    'Frame 所在列号；如果没有 Frame，填 0：', ...
-    'SPINN-D 所在列号：', ...
-    'D_truth 所在列号：', ...
-    '原始短轨迹长度，例如 20；如果不评估拼接边界，填 0：', ...
-    'SPINN split 长度，例如 50；如果不评估 split 边界，填 0：', ...
-    '边界额外窗口；0=只取边界两帧，1=取边界前后各1帧，2=前后各2帧：', ...
-    ['SPINN-D 状态阈值方法：' newline ...
-     '1 = log(SPINN-D) 两类聚类，推荐' newline ...
-     '2 = 手动输入阈值' newline ...
-     '3 = 自动寻找使准确率最高的阈值，作为上限参考' newline ...
-     '4 = 使用 D_truth 的 slow/fast 阈值'], ...
-    '如果方法=2，请输入手动 SPINN-D 阈值；否则留空：' ...
+    'TrackID column index; enter 0 if TrackID is absent:', ...
+    'Frame column index; enter 0 if Frame is absent:', ...
+    'SPINN-D column index:', ...
+    'D_truth column index:', ...
+    'Original short-track length, e.g. 20; enter 0 to skip concatenation-boundary evaluation:', ...
+    'SPINN split length, e.g. 50; enter 0 to skip split-boundary evaluation:', ...
+    'Extra boundary window; 0=boundary pair only, 1=one frame before/after, 2=two frames before/after:', ...
+    ['SPINN-D state-threshold method:' newline ...
+     '1 = Two-class clustering on log(SPINN-D), recommended' newline ...
+     '2 = Manually entered threshold' newline ...
+     '3 = Automatically find the threshold with highest accuracy as an upper-bound reference' newline ...
+     '4 = Use the slow/fast threshold from D_truth'], ...
+    'If method=2, enter the manual SPINN-D threshold; otherwise leave blank:' ...
     };
 
-dlgtitle = 'SPINN 状态切换准确性评估参数';
+dlgtitle = 'SPINN state-switching accuracy evaluation parameters';
 dims = [1 90];
 
 defaultAns = { ...
@@ -93,7 +93,7 @@ defaultAns = { ...
 answer = inputdlg(prompt, dlgtitle, dims, defaultAns);
 
 if isempty(answer)
-    disp('已取消。');
+    disp('Canceled.');
     return;
 end
 
@@ -117,15 +117,15 @@ if isnan(boundaryExtraWindow), boundaryExtraWindow = 1; end
 if isnan(thresholdMethod), thresholdMethod = 1; end
 
 if spinnDCol < 1 || spinnDCol > nCols
-    error('SPINN-D 列号超出表格范围。');
+    error('The SPINN-D column index is outside the table range.');
 end
 
 if truthDCol < 1 || truthDCol > nCols
-    error('D_truth 列号超出表格范围。');
+    error('The D_truth column index is outside the table range.');
 end
 
 %% =========================
-% 3. 读取 SPINN-D 和 D_truth
+% 3. Read SPINN-D and D_truth
 %% =========================
 SPINN_D = convert_column_to_numeric(T{:, spinnDCol});
 D_truth = convert_column_to_numeric(T{:, truthDCol});
@@ -133,11 +133,11 @@ D_truth = convert_column_to_numeric(T{:, truthDCol});
 validD = isfinite(SPINN_D) & isfinite(D_truth) & SPINN_D > 0 & D_truth > 0;
 
 if sum(validD) < 10
-    error('有效的 SPINN-D / D_truth 数据太少。请检查第 11 和第 12 列是否正确。');
+    error('Too few valid SPINN-D / D_truth values. Please check whether columns 11 and 12 are correct.');
 end
 
 %% =========================
-% 4. 获取 TrackID 和 row-within-track
+% 4. Get TrackID and row-within-track
 %% =========================
 if trackCol >= 1 && trackCol <= nCols
     rawTrackID = T{:, trackCol};
@@ -161,7 +161,7 @@ for i = 1:numel(uniqueTracks)
 end
 
 %% =========================
-% 5. 计算 truth state 和 predicted state
+% 5. Compute truth state and predicted state
 %% =========================
 truthThreshold = estimate_two_state_threshold_log(D_truth(validD));
 
@@ -176,7 +176,7 @@ switch thresholdMethod
 
     case 2
         if isnan(manualThreshold) || manualThreshold <= 0
-            error('你选择了手动阈值，但没有输入有效阈值。');
+            error('Manual threshold was selected, but no valid threshold was entered.');
         end
         spinnThreshold = manualThreshold;
         thresholdMethodName = "manual";
@@ -211,14 +211,14 @@ PredStateName(predState == 2) = "fast";
 PredStateName(isnan(predState)) = "invalid";
 
 %% =========================
-% 6. 标记拼接边界帧和 split 边界帧
+% 6. Mark concatenation boundary frames and split boundary frames
 %% =========================
 IsConcatBoundaryFrame = false(nRows, 1);
 IsSplitBoundaryFrame = false(nRows, 1);
 
-% 原始短轨迹内部 local frame
-% 如果 TrackID 是原始短轨迹 ID，则 rowWithinTrack = 1...20
-% 如果 TrackID 是拼接后的 pseudo-track ID，则 rowWithinTrack 也可以按 shortTrackLen 取模。
+% Local frame within the original short track
+% If TrackID is the original short-track ID, rowWithinTrack = 1...20
+% If TrackID is the concatenated pseudo-track ID, rowWithinTrack can also be reduced modulo shortTrackLen.
 if shortTrackLen > 0
     localShortFrame = mod(rowWithinTrack - 1, shortTrackLen) + 1;
 
@@ -229,8 +229,8 @@ else
     localShortFrame = nan(nRows, 1);
 end
 
-% SPINN split 边界应该按照全局行号判断，
-% 因为 split 是对拼接后的长序列每 splitLen 帧切分一次。
+% SPINN split boundaries should be determined by the global row index,
+% because splitting cuts the concatenated long sequence every splitLen frames.
 if splitLen > 0
     globalRow = (1:nRows)';
     localSplitFrame = mod(globalRow - 1, splitLen) + 1;
@@ -245,7 +245,7 @@ end
 IsAnyBoundaryFrame = IsConcatBoundaryFrame | IsSplitBoundaryFrame;
 
 %% =========================
-% 7. 评估 frame-level 状态准确性
+% 7. Evaluate frame-level state accuracy
 %% =========================
 StateSummary = table();
 
@@ -265,23 +265,23 @@ StateSummary = [StateSummary; compute_state_metrics( ...
     "Any-boundary frames", truthState, predState, validD & IsAnyBoundaryFrame)];
 
 %% =========================
-% 8. 评估真实状态切换识别准确性
+% 8. Evaluate real state-switch detection accuracy
 %% =========================
 nTrans = nRows - 1;
 
-% 相邻两行是否有效
+% Whether adjacent rows are valid
 validRowPair = ...
     validD(1:nTrans) & validD(2:nRows) & ...
     ~isnan(truthState(1:nTrans)) & ~isnan(truthState(2:nRows)) & ...
     ~isnan(predState(1:nTrans)) & ~isnan(predState(2:nRows));
 
-% 相邻两行是否属于同一条原始轨迹
+% Whether adjacent rows belong to the same original track
 sameTrackTrans = TrackGroupID(1:nTrans) == TrackGroupID(2:nRows);
 
 %% -------------------------
-% 人工拼接 transition
-% 重点：这里不要要求 sameTrackTrans
-% 因为人工拼接点通常正好是 TrackID 变化处：
+% Artificial concatenation transition
+% Important: do not require sameTrackTrans here,
+% because artificial concatenation points often occur exactly where TrackID changes:
 % Track 1 frame 20 -> Track 2 frame 1
 %% -------------------------
 if shortTrackLen > 0
@@ -298,7 +298,7 @@ end
 
 %% -------------------------
 % SPINN split transition
-% 例如 splitLen = 50:
+% Example for splitLen = 50:
 % localSplitFrame = 50 -> localSplitFrame = 1
 %% -------------------------
 if splitLen > 0
@@ -314,24 +314,24 @@ else
 end
 
 %% -------------------------
-% 真实状态切换与预测状态切换
+% Real state switches and predicted state switches
 %% -------------------------
 truthSwitch = truthState(1:nTrans) ~= truthState(2:nRows);
 predSwitch  = predState(1:nTrans)  ~= predState(2:nRows);
 
-% 真实物理 transition：
-% 只统计同一条原始轨迹内部的 transition
-% 不把 Track 20 -> next Track 1 的人工拼接点当作真实状态切换
+% Real physical transition:
+% Only count transitions within the same original track
+% Do not treat the artificial concatenation point Track 20 -> next Track 1 as a real state switch
 validRealTrans = validRowPair & sameTrackTrans;
 
 %% -------------------------
-% 边界附近 transition
+% Boundary-adjacent transition
 %% -------------------------
 IsBoundaryTransition = validRowPair & ...
     (IsAnyBoundaryFrame(1:nTrans) | IsAnyBoundaryFrame(2:nRows));
 
 %% -------------------------
-% 计算 switch-level accuracy
+% Compute switch-level accuracy
 %% -------------------------
 SwitchSummary = table();
 
@@ -347,7 +347,7 @@ SwitchSummary = [SwitchSummary; compute_switch_metrics( ...
 SwitchSummary = [SwitchSummary; compute_switch_metrics( ...
     "Split-boundary transitions", truthSwitch, predSwitch, validRealTrans & IsSplitTransition)];
 
-% 额外输出：人工拼接 transition 和 split transition 本身的 predicted switch rate
+% Additional output: predicted switch rate for artificial concatenation transitions and split transitions
 SwitchSummary = [SwitchSummary; compute_switch_metrics( ...
     "Artificial concat transitions only", truthSwitch, predSwitch, IsArtificialConcatTransition)];
 
@@ -355,7 +355,7 @@ SwitchSummary = [SwitchSummary; compute_switch_metrics( ...
     "All split transitions only", truthSwitch, predSwitch, IsSplitTransition)];
 
 %% =========================
-% 9. 真实切换帧附近的 frame-level 状态准确性
+% 9. Frame-level state accuracy near real switch frames
 %% =========================
 IsTrueSwitchAdjacentFrame = false(nRows, 1);
 
@@ -374,7 +374,7 @@ StateSummary = [StateSummary; compute_state_metrics( ...
     "Non-true-switch-adjacent frames", truthState, predState, validD & ~IsTrueSwitchAdjacentFrame)];
 
 %% =========================
-% 10. 专门评估人工拼接 transition 是否诱发假 switch
+% 10. Specifically evaluate whether artificial concatenation transitions induce false switches
 %% =========================
 ArtificialConcatTransitionSummary = compute_artificial_concat_transition_summary( ...
     IsArtificialConcatTransition, predSwitch, truthState, predState, D_truth, SPINN_D);
@@ -383,7 +383,7 @@ SplitTransitionSummary = compute_split_transition_summary( ...
     IsSplitTransition, predSwitch, truthState, predState, D_truth, SPINN_D);
 
 %% =========================
-% 11. 将评估结果加入原始表格
+% 11. Add evaluation results to the original table
 %% =========================
 T.Eval_RowIndex = (1:nRows)';
 T.Eval_TrackGroupID = TrackGroupID;
@@ -412,7 +412,7 @@ T.Eval_IsAnyBoundaryFrame = IsAnyBoundaryFrame;
 T.Eval_IsTrueSwitchAdjacentFrame = IsTrueSwitchAdjacentFrame;
 
 %% =========================
-% 12. transition-level 输出表
+% 12. Transition-level output table
 %% =========================
 TransitionTable = table( ...
     (1:nTrans)', ...
@@ -444,7 +444,7 @@ Confusion_SplitBoundary = make_confusion_table(truthState, predState, validD & I
 Confusion_TrueSwitchAdjacent = make_confusion_table(truthState, predState, validD & IsTrueSwitchAdjacentFrame);
 
 %% =========================
-% 14. 输出 Excel
+% 14. Export Excel
 %% =========================
 [~, baseName, ~] = fileparts(fileName);
 outfile = fullfile(filePath, [baseName '_SPINN_state_accuracy_evaluation.xlsx']);
@@ -508,7 +508,7 @@ fprintf('\nDone.\n');
 fprintf('Results saved to:\n%s\n', outfile);
 
 %% =========================
-% 15. 命令行显示关键结果
+% 15. Display key results in the command window
 %% =========================
 fprintf('\n========== Key results ==========\n');
 fprintf('Truth threshold = %.6g\n', truthThreshold);
@@ -530,7 +530,7 @@ disp('Split transition summary:');
 disp(SplitTransitionSummary);
 
 %% =========================
-% 16. 画图并安全保存
+% 16. Plot figures and save safely
 %% =========================
 make_basic_plots(filePath, baseName, ...
     SPINN_D, D_truth, truthState, predState, ...
@@ -614,7 +614,7 @@ if numel(unique(logD)) == 1
     return;
 end
 
-% 自写 1D k-means，避免依赖 Statistics Toolbox
+% Custom 1D k-means to avoid depending on the Statistics Toolbox
 c1 = min(logD);
 c2 = max(logD);
 
@@ -1056,13 +1056,13 @@ try
     exportgraphics(gcf, pngFile, 'Resolution', 300);
     fprintf('Figure saved to: %s\n', pngFile);
 catch ME1
-    warning('PNG 保存失败，尝试保存为 .fig。原因：%s', ME1.message);
+    warning('Failed to save PNG; trying to save as .fig. Reason: %s', ME1.message);
 
     try
         savefig(gcf, figFile);
         fprintf('Figure saved to: %s\n', figFile);
     catch ME2
-        warning('图像保存失败，但不影响 Excel 结果。错误信息：%s', ME2.message);
+        warning('Failed to save the figure, but Excel results are unaffected. Error message: %s', ME2.message);
     end
 end
 
